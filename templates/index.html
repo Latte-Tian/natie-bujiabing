@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube视频下载器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-4xl font-bold text-center mb-4">YouTube视频下载器</h1>
+        <p class="text-center text-gray-600 mb-8">输入YouTube视频链接，轻松下载高质量视频</p>
+
+        <div class="max-w-xl mx-auto">
+            <div class="flex gap-2">
+                <input type="text" id="videoUrl" 
+                    class="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:border-blue-500"
+                    placeholder="请输入YouTube视频链接">
+                <button onclick="downloadVideo()" 
+                    class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors">
+                    下载
+                </button>
+            </div>
+            <div id="downloadStatus" class="mt-4 text-center hidden">
+                <div class="w-full bg-gray-200 rounded-full h-4 mt-4">
+                    <div id="progressBar" class="bg-blue-500 h-4 rounded-full transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <div class="text-sm text-gray-600 mt-2">
+                    <span id="progressText">0%</span>
+                    <span id="speedText" class="ml-4">0 MB/s</span>
+                    <span id="etaText" class="ml-4">剩余时间: 计算中...</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-12">
+            <h2 class="text-2xl font-bold mb-4">下载历史</h2>
+            <div class="grid gap-6" id="videoList">
+                {% for video in videos %}
+                <div class="bg-white p-6 rounded-lg shadow">
+                    <div class="flex justify-between items-start">
+                        <div class="flex-1">
+                            <h3 class="text-xl font-semibold mb-2">{{ video.title }}</h3>
+                            <div class="text-sm text-gray-600 space-y-1">
+                                <p>上传者: {{ video.uploader }}</p>
+                                <p>时长: {{ video.duration }}</p>
+                                <p>文件大小: {{ "{:.2f}".format(video.file_size / 1024 / 1024) }} MB</p>
+                                <p>下载时间: {{ video.download_date }}</p>
+                            </div>
+                            <p class="mt-2 text-gray-700 line-clamp-3">{{ video.description }}</p>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <video controls class="w-full rounded">
+                            <source src="/downloads/{{ video.filename.split('/')[-1] }}" type="video/mp4">
+                            您的浏览器不支持视频播放。
+                        </video>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let checkProgress;
+        
+        function updateProgress() {
+            fetch('/progress')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'downloading') {
+                        const progress = (data.downloaded_bytes / data.total_bytes) * 100;
+                        const speed = (data.speed / 1024 / 1024).toFixed(2);
+                        
+                        document.getElementById('progressBar').style.width = `${progress}%`;
+                        document.getElementById('progressText').textContent = `${progress.toFixed(1)}%`;
+                        document.getElementById('speedText').textContent = `${speed} MB/s`;
+                        document.getElementById('etaText').textContent = `剩余时间: ${data.eta}秒`;
+                    } else if (data.status === 'finished') {
+                        document.getElementById('downloadStatus').classList.add('hidden');
+                        clearInterval(checkProgress);
+                        location.reload();
+                    }
+                });
+        }
+        
+        async function downloadVideo() {
+            const url = document.getElementById('videoUrl').value;
+            if (!url) {
+                alert('请输入视频链接');
+                return;
+            }
+
+            const status = document.getElementById('downloadStatus');
+            status.classList.remove('hidden');
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressText').textContent = '0%';
+            document.getElementById('speedText').textContent = '0 MB/s';
+            document.getElementById('etaText').textContent = '剩余时间: 计算中...';
+
+            try {
+                const response = await fetch('/download?url=' + encodeURIComponent(url), {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                // 开始轮询进度
+                checkProgress = setInterval(updateProgress, 1000);
+            } catch (error) {
+                alert('下载失败: ' + error);
+                status.classList.add('hidden');
+            }
+        }
+    </script>
+</body>
+</html> 
