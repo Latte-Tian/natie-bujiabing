@@ -1,1 +1,6 @@
 downloads/
+.DS_Store
+__pycache__/
+*.pyc
+get-pip.py
+download_history.json
